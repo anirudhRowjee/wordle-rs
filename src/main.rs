@@ -1,5 +1,7 @@
 extern crate colored;
 use colored::*;
+
+use rand::{seq::IteratorRandom, thread_rng};
 use std::collections::HashSet;
 
 /// Classify Character Matches for each word
@@ -17,6 +19,7 @@ struct Attempt {
     length: usize,
     attempt_text: String,
     match_vector: Vec<CharMatch>,
+    is_win: bool
 }
 
 impl Attempt {
@@ -27,6 +30,7 @@ impl Attempt {
             length,
             attempt_text: String::new(),
             match_vector: Vec::new(),
+            is_win: false
         }
     }
 
@@ -39,39 +43,43 @@ impl Attempt {
         }
     }
 
-    fn resolve(&mut self, target_string: String) {
+    fn resolve(&mut self, target_string: &String) {
 
         let mut match_vector: Vec<CharMatch> = Vec::new();
+        let mut is_win = 0;
 
         for (i, c) in self.attempt_text.chars().enumerate() {
 
             if target_string.contains(c) {
+
                 // check if the position is right
                 let index_check = target_string.to_string().as_bytes()[i];
+
                 if (index_check as char) == c {
                     match_vector.push(CharMatch::ExistsHere(c));
+                    is_win += 1;
                 } else {
                     match_vector.push(CharMatch::ExistsSomewhereElse(c));
                 }
+
             } else {
-                match_vector.push(CharMatch::ExistsSomewhereElse(c));
+                match_vector.push(CharMatch::DoesNotExist(c));
             }
         }
 
-        // println!("{}", match_vector);
         self.match_vector = match_vector;
-        self.match_vector.iter().map(|x| println!("{:?}", x)).last();
+        self.is_win = if is_win == target_string.len() { true } else { false };
     }
 
     // TODO figure out how to test this
-    fn render(self) {
-        println!("Entering Match Phase");
+    fn render(&self) {
+        // println!("Entering Match Phase");
         self.match_vector
             .iter()
             .map(|x| {
                 match x {
                     &CharMatch::DoesNotExist(char) => {
-                        print!("{}", char.to_string().on_black().white());
+                        print!("{}", char.to_string().on_black().red());
                     }
                     &CharMatch::ExistsSomewhereElse(char) => {
                         print!("{}", char.to_string().on_yellow().black());
@@ -83,23 +91,131 @@ impl Attempt {
             })
             .last();
         print!("\n");
-
     }
 }
 
+
 /// Hold all Game Data
 struct Game {
-    current_attempts: i32,
-    max_attempts: i32,
 
+    max_attempts: i32,
     attempts: Vec<Attempt>,
 
-    target_word: String,
     words: HashSet<String>,
+    word_length: usize,
+    target_word: String,
+}
+
+impl Game {
+
+    /// intialize the game, decide the word and load all words
+    fn new() -> Game {
+
+        let mut datastore = HashSet::new();
+
+        // get all words
+        let words = include_str!("./words.txt").to_string();
+
+        // Load into hashset for ideal O(1) lookup
+        words
+            .split('\n')
+            .map(|word| {
+                datastore.insert(word.to_string())
+            })
+            .last();
+
+        // get Random word
+        let mut rng = thread_rng();
+        let random_word = datastore.iter().choose(&mut rng).unwrap();
+
+        println!("There are {} words in the dataset", datastore.len());
+        println!("The word chosen for this Game is {}", random_word);
+
+        Game {
+            max_attempts: 5,
+            word_length: 5,
+            attempts: Vec::new(),
+            target_word: random_word.to_string(),
+            words: datastore
+        }
+    }
+
+    fn make_play(&mut self, mut user_word: String) -> Attempt {
+
+        let mut temp_attempt = Attempt::new(self.word_length);
+
+        // TODO error handling for failed resolve
+        temp_attempt.attempt(&mut user_word);
+        temp_attempt.resolve(&self.target_word);
+
+        temp_attempt.render();
+
+        temp_attempt
+    }
+
+    fn game_loop(&mut self) {
+
+        let mut current_attempt = 1;
+
+        // run the game loop
+        while current_attempt <= self.max_attempts + 1 {
+
+            println!("Attempt {}/{}", current_attempt, self.max_attempts + 1);
+
+            // take a guess from the user
+            let mut user_word = String::new();
+            std::io::stdin().read_line(&mut user_word).unwrap();
+            // get rid of the newline
+            user_word.pop();
+
+            if user_word.len() != self.word_length {
+                println!("Word is not the right length!");
+                continue;
+            }
+
+            // conver to lowercase
+            user_word = user_word.to_lowercase();
+
+            // make sure it exists in the word set
+            match self.words.get(&user_word) {
+                Some(_) =>  {
+
+                    // if so, run the attempt on it
+                    let temp_attempt = self.make_play(user_word);
+
+                    current_attempt += 1;
+
+                    // println!("Win Status {}", temp_attempt.is_win);
+
+                    if temp_attempt.is_win {
+                        println!("{}", "Congratulations! You Won :D".on_bright_green().black());
+                        break;
+                    }
+
+                    self.attempts.push(temp_attempt);
+                }
+                None => {
+                    println!("Not in the word list!");
+                    continue;
+                }
+            }
+
+
+        }
+
+    }
+
 }
 
 fn main() {
     // let mut words = include_str!("./words.txt");
+    //
+    //
+    //
+
+    let mut a = Game::new();
+    a.game_loop();
+    /*
 
     println!("Welcome to CLI-Worlde!");
     println!("Enter your Attempt Below.");
@@ -129,6 +245,8 @@ fn main() {
             attempt.clear();
         }
     }
+
+    */
 }
 
 
@@ -136,11 +254,6 @@ fn main() {
 mod tests {
 
     use crate::*;
-
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
 
     #[test]
     fn test_attempt() {
@@ -177,11 +290,7 @@ mod tests {
             CharMatch::DoesNotExist('T'),
         ];
 
-        // TODO figure out how to implement vector equality
-
-        // assert!(a.match_vector == match_vec);
-        // match_vec.iter().zip(a.match_vector).
-
+        assert!(a.match_vector == match_vec);
     }
 
 
