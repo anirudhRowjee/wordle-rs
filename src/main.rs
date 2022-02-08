@@ -79,13 +79,25 @@ impl Attempt {
             .map(|x| {
                 match x {
                     &CharMatch::DoesNotExist(char) => {
-                        print!("{}", char.to_string().on_black().red());
+                        print!("{}{}{}", 
+                            " ".to_string().on_black().bright_red(),
+                            char.to_string().on_black().bright_red(),
+                            " ".to_string().on_black().bright_red(),
+                        );
                     }
                     &CharMatch::ExistsSomewhereElse(char) => {
-                        print!("{}", char.to_string().on_yellow().black());
+                        print!("{}{}{}", 
+                            " ".to_string().on_bright_yellow().black(),
+                            char.to_string().on_bright_yellow().black(),
+                            " ".to_string().on_bright_yellow().black(),
+                        );
                     }
                     &CharMatch::ExistsHere(char) => {
-                        print!("{}", char.to_string().on_green().black());
+                        print!("{}{}{}", 
+                            " ".to_string().on_bright_green().black(),
+                            char.to_string().on_bright_green().black(),
+                            " ".to_string().on_bright_green().black(),
+                        );
                     }
                 };
             })
@@ -257,7 +269,7 @@ mod tests {
 
     #[test]
     fn test_attempt() {
-        let target_text = String::from("FIERY");
+        // let target_text = String::from("FIERY");
 
         let mut test_text_pass = String::from("START");
         let mut test_text_fail_length = String::from("STARTS");
@@ -279,7 +291,7 @@ mod tests {
         // will pass
         a.attempt(&mut test_text_pass);
 
-        a.resolve(target_text);
+        a.resolve(&target_text);
 
         // manually match the vectors
         let match_vec = vec![
